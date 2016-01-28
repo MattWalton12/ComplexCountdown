@@ -7,8 +7,16 @@ function CNumber:mul(param)
 end
 
 function CNumber:div(param)
-	if type(param) == "number" then param = Complex(param, 0) end
-	return self:mul(Complex(param.real, -param.imaginary))
+	if (param == 0) then return end -- don't want to be dividing by 0 thank you very much
+	if type(param) == "number" then 
+		return Complex(self.real / param, self.imaginary / param)
+	end
+
+
+	local top = self:mul(Complex(param.real, -param.imaginary))
+	local bottom = param:mul(Complex(param.real, -param.imaginary))
+
+	return Complex(top.real / bottom.real, top.imaginary / bottom.real)
 end
 
 function CNumber:add(param)

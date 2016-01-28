@@ -32,3 +32,4 @@ function Vector(x, y)
 
 	return setmetatable(object, Vec2)
 end
+
