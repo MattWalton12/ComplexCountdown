@@ -1,6 +1,8 @@
 require("complex")
 require("vec2")
 
+local STATE_MENU = -3
+local STATE_OPTIONS = -2
 local STATE_NONE = -1
 local STATE_SELECT = 0
 local STATE_PREPLAY = 1
@@ -10,11 +12,12 @@ local STATE_SOLUTIONS = 4
 local STATE_BESTSOLUTION = 5
 
 game = {}
+game.version = "0.1.1"
 game.selectedCards = {}
 game.targetNumber = {}
 game.solution = {}
 game.playingCards = {}
-game.state = STATE_NONE
+game.state = STATE_MENU
 game.stateChange = 0
 game.timeStart = 0
 game.cursor = love.mouse.getSystemCursor("arrow")
@@ -22,6 +25,7 @@ game.calculatedSolution = {}
 
 game.options = {}
 game.options.numberOfCards = 6
+game.options.fullscreen = false
 
 game.resources = {}
 game.resources.sansFont = {}
@@ -252,11 +256,14 @@ function game.init()
 end
 
 function game.startTimer()
-	--love.audio.play(game.resources.timerSound)
+	love.audio.play(game.resources.timerSound)
 end
 
 function game.generateRandomNumber()
 	game.targetNumber = Complex((math.random(0, 5) == 0 and 0 or math.random(0, 250)), (math.random(0, 5) == 0 and 0 or math.random(0, 250)))
+	if (game.targetNumber.real == 0) and (game.targetNumber.imaginary == 0) then
+		game.generateRandomNumber()
+	end
 end
 
 function game.drawBackground()
@@ -295,6 +302,11 @@ end
 function game.drawClock(x, y, r)
 	local timePercentage = game.state == STATE_PLAYING and (100 / 30 * math.min(love.timer.getTime() - game.timeStart, 30)) or 0
 
+	if (game.state > STATE_PLAYING) then
+		timePercentage = 100
+	end
+
+
 	love.graphics.setColor(106, 137, 232)
 	love.graphics.circle("fill", x, y, r, 512)
 
@@ -312,6 +324,7 @@ function game.drawClock(x, y, r)
 	love.graphics.arc("fill", x, y, r-4, -math.pi/2 + (math.pi/100 * (timePercentage)), 3 * math.pi/2, 128)
 
 	love.graphics.circle("fill", x, y, r/4, 128)
+
 end
 
 function game.calculateCardPositions()
@@ -360,7 +373,12 @@ function game.drawPlayButton()
 	love.graphics.setColor(106, 137, 232)
 	love.graphics.rectangle("fill", love.graphics.getWidth() /2 - width/2, love.graphics.getHeight() - 175, width, 100)
 
-	love.graphics.setColor(225, 225, 225)
+	if playButtonHover then
+		love.graphics.setColor(180, 180, 180)
+	else
+		love.graphics.setColor(225, 225, 225)
+	end
+
 	love.graphics.rectangle("fill", love.graphics.getWidth() /2 - width/2 + 4, love.graphics.getHeight() - 175 + 4, width - 8, 92)
 
 	love.graphics.setColor(106 * 0.8, 137 * 0.8, 232 * 0.8)
@@ -727,8 +745,6 @@ function game.calculateAllSolutions(target, numbers)
 	end
 
 
-	PrintTable(bestSolution)
-
 	return perfectSolution, bestConjugate, best
 end
 
@@ -779,7 +795,129 @@ function game.drawBestSolutions()
 	end
 end
 
+function game.showOptions()
+	game.state = STATE_OPTIONS
+end
 
+game.optionsButtons = {}
+
+game.optionsButtons["fullscreen"] = {
+	text = "Toggle Fullscreen",
+	y = 200,
+	hover = false,
+
+	action = function()
+		game.options.fullscreen = not game.options.fullscreen
+		love.window.setFullscreen(game.options.fullscreen, "desktop")
+	end
+}
+
+game.optionsButtons["cardnumber"] = {
+	text = function() return game.options.numberOfCards .. " cards" end,
+	y = 280,
+	hover = false,
+
+	action = function()
+		game.options.numberOfCards = game.options.numberOfCards + 1
+		if (game.options.numberOfCards > 9) then
+			game.options.numberOfCards = 4
+		end
+	end
+}
+
+game.optionsButtons["back"] = {
+	text = "Back to menu",
+	y = 400,
+	hover = false,
+
+	action = function()
+		game.state = STATE_MENU
+	end
+}
+
+
+function game.drawOptions()
+	love.graphics.setBackgroundColor(107 * .8, 137 * .8, 232 *.8)
+	love.graphics.setColor(245, 245, 245)
+
+	love.graphics.setFont(game.resources.sansFontLarge)
+	love.graphics.printf("Options", 0, 100, love.graphics.getWidth(), "center")
+
+
+	for id, but in pairs(game.optionsButtons) do
+
+		local text = but.text
+
+		if (type(text) == "function") then
+			text = text()
+		end
+
+		love.graphics.setColor(107, 137, 232)
+		love.graphics.rectangle("fill", love.graphics.getWidth()/2 - 150, but.y, 300, 60)
+
+		if (but.hover) then
+			love.graphics.setColor(180, 180, 180)
+		else
+			love.graphics.setColor(245, 245, 245)
+		end
+
+		love.graphics.rectangle("fill", love.graphics.getWidth()/2 - 148, but.y + 2, 296, 56)
+
+		love.graphics.setColor(107 * .8, 137 * .8, 232 *.8)
+		love.graphics.setFont(game.resources.sansFontSmall)
+		love.graphics.printf(text, love.graphics.getWidth()/2 - 148, but.y + 20, 296, "center")
+	end
+
+
+end
+
+
+function game.showMenu()
+	game.state = STATE_MENU
+end
+
+local menuPlayHover = false
+local menuOptionsHover = false
+
+function game.drawMenu()
+	love.graphics.setBackgroundColor(107 * .8, 137 * .8, 232 *.8)
+	love.graphics.setColor(245, 245, 245)
+
+	love.graphics.setFont(game.resources.sansFontLarge)
+	love.graphics.printf("Complex Countdown", 0, 100, love.graphics.getWidth(), "center")
+
+	love.graphics.setFont(game.resources.sansFontSmall)
+	love.graphics.print(game.version, 10, love.graphics.getHeight() - 30)
+	love.graphics.printf("github.com/MattWalton12/ComplexCountdown", 0, love.graphics.getHeight() - 30, love.graphics.getWidth() - 10, "right")
+
+
+	love.graphics.setColor(107, 137, 232)
+	love.graphics.rectangle("fill", love.graphics.getWidth()/2 - 200, 300, 400, 100)
+	love.graphics.rectangle("fill", love.graphics.getWidth()/2 - 200, 450, 400, 100)
+
+	if (menuPlayHover) then
+		love.graphics.setColor(180, 180, 180)
+	else
+		love.graphics.setColor(245, 245, 245)
+	end
+
+	love.graphics.rectangle("fill", love.graphics.getWidth()/2 - 198, 302, 396, 96)
+
+	if (menuOptionsHover) then
+		love.graphics.setColor(180, 180, 180)
+	else
+		love.graphics.setColor(245, 245, 245)
+	end
+
+	
+	love.graphics.rectangle("fill", love.graphics.getWidth()/2 - 198, 452, 396, 96)
+
+	love.graphics.setFont(game.resources.sansFont)
+	love.graphics.setColor(107 * .8, 137 * .8, 232 *.8)
+	love.graphics.printf("Play", love.graphics.getWidth()/2 - 198, 335, 396, "center")
+	love.graphics.printf("Options", love.graphics.getWidth()/2 - 198, 485, 396, "center")
+
+end
 
 function game.play()
 	game.state = STATE_PLAYING
@@ -798,9 +936,15 @@ function love.load()
 	game.resources.timerSound = love.audio.newSource("resources/clock.wav", "static")
 	game.resources.sansFont = love.graphics.newFont("resources/KeepCalm-Medium.ttf", 26)
 	game.resources.sansFontSmall = love.graphics.newFont("resources/KeepCalm-Medium.ttf", 18)
+	game.resources.sansFontLarge = love.graphics.newFont("resources/KeepCalm-Medium.ttf", 48)
 	game.resources.lcdFont = love.graphics.newFont("resources/Calculator.ttf", 48)
 
-	game.init()
+	--game.init()
+	game.showMenu()
+
+
+	local per = game.calculateAllSolutions(Complex(100,0),{Complex(8,0), Complex(2,0), Complex(10,0)})
+	PrintTable(per)
 end
 
 function love.update(dt)
@@ -811,6 +955,13 @@ function love.update(dt)
 	checkHover = false
 	backHover = false
 	restartHover = false
+	menuOptionsHover = false
+	menuPlayHover = false
+	playButtonHover = false
+
+	for __, v in pairs(game.optionsButtons) do 
+		v.hover = false
+	end
 
 	if (game.state >= STATE_SELECT) then
 		for i, card in pairs(game.playingCards[1]) do
@@ -821,6 +972,9 @@ function love.update(dt)
 			card:update(dt)
 		end
 	end
+
+
+	
 
 	if (game.state == STATE_PLAYING or game.state == STATE_FINISHED) then
 		for __, operator in pairs(game.operators) do
@@ -833,6 +987,49 @@ function love.update(dt)
 	end
 
 	local x, y = love.mouse.getPosition()
+
+	if game.state == STATE_PREPLAY and love.timer.getTime() - game.stateChange > 2 then
+		local width = math.min(love.graphics.getWidth() - 20, 300)
+		if (x > love.graphics.getWidth() /2 - width/2 and x < love.graphics.getWidth() /2 + width/2)
+			and (y > love.graphics.getHeight() - 175 and y < love.graphics.getHeight() - 75) then
+			playButtonHover = true
+			game.cursor = handCursor
+		else
+			playButtonHover = false
+		end
+	end
+
+	if (game.state == STATE_MENU) then
+		if (x > love.graphics.getWidth()/2 - 200 and x < love.graphics.getWidth()/2 + 200) then
+			if (y > 300 and y < 400) then
+				menuPlayHover = true
+				game.cursor = handCursor
+			else
+				menuPlayHover = false
+			end
+
+			if (y > 450 and y < 550) then
+				menuOptionsHover = true
+				game.cursor = handCursor
+			else
+				menuOptionsHover = false
+			end
+		end
+	end
+
+	if (game.state == STATE_OPTIONS) then
+		if (x > love.graphics.getWidth()/2 - 150 and x < love.graphics.getWidth()/2 + 150) then
+			for __, but in pairs(game.optionsButtons) do
+				if (y > but.y and y < but.y + 60) then
+					but.hover = true
+					game.cursor = handCursor
+				else
+					but.hover = false
+				end
+			end
+		end
+	end
+
 
 	if (game.state == STATE_PLAYING or game.state == STATE_FINISHED) then
 		if (x > love.graphics.getWidth()/2 - 300 and x < love.graphics.getWidth()/2 - 300 + 120) and (y > love.graphics.getHeight() - 100 and y < love.graphics.getHeight() - 30) then
@@ -909,6 +1106,22 @@ function love.mousereleased(x, y, button)
 		end
 	end
 
+	if (game.state == STATE_MENU) then
+		if (menuPlayHover) then
+			game.init()
+		elseif (menuOptionsHover) then
+			game.showOptions()
+		end
+	end
+
+	if (game.state == STATE_OPTIONS) then
+		for __, but in pairs(game.optionsButtons) do
+			if (but.hover) then
+				but.action()
+			end
+		end
+	end
+
 	if (game.state == STATE_PLAYING or game.state == STATE_FINISHED) then
 		for __, operator in pairs(game.operators) do
 			if (operator.hovered) then
@@ -918,20 +1131,23 @@ function love.mousereleased(x, y, button)
 		end
 
 		if (x > love.graphics.getWidth()/2 - 300 and x < love.graphics.getWidth()/2 - 300 + 120) and (y > love.graphics.getHeight() - 100 and y < love.graphics.getHeight() - 30) then
-			if (type(game.solution[#game.solution]) == "table" or game.solution[#game.solution] == "(" or game.solution[#game.solution] == ")") then
-				if (type(game.solution[#game.solution]) == "table") then
-					for __, card in pairs(game.selectedCards) do
-						if (card.value:equals(game.solution[#game.solution])) then
-							card.used = false
+			if (#game.solution > 0) then
+
+				if (type(game.solution[#game.solution]) == "table" or game.solution[#game.solution] == "(" or game.solution[#game.solution] == ")") then
+					if (type(game.solution[#game.solution]) == "table") then
+						for __, card in pairs(game.selectedCards) do
+							if (card.value:equals(game.solution[#game.solution])) then
+								card.used = false
+							end
 						end
 					end
-				end
 
-				game.placeNumber = true
-			else
-				game.placeNumber = false
+					game.placeNumber = true
+				else
+					game.placeNumber = false
+				end
+				table.remove(game.solution, #game.solution)
 			end
-			table.remove(game.solution, #game.solution)
 		end
 
 		if (x > love.graphics.getWidth()/2 + 180 and x < love.graphics.getWidth()/2 + 300) and (y > love.graphics.getHeight() - 100 and y < love.graphics.getHeight() - 30) then
@@ -946,7 +1162,7 @@ function love.mousereleased(x, y, button)
 
 	end
 
-	if (game.state == STATE_FINISHED and checkHover) then
+	if (game.state == STATE_FINISHED and checkHover and #game.solution > 0) then
 	
 		game.state = STATE_SOLUTIONS
 		backHover = false
@@ -957,9 +1173,10 @@ function love.mousereleased(x, y, button)
 		if (backHover) then
 			game.state = STATE_FINISHED
 		elseif (restartHover) then
-			game.init()
+			game.showMenu()
 		elseif (bestHover) then
-			game.state = STATE_BESTSOLUTION
+			--game.state = STATE_BESTSOLUTION
+			--[[
 			local selectedNumbers = {}
 
 			for __, v in pairs(game.selectedCards) do
@@ -972,13 +1189,13 @@ function love.mousereleased(x, y, button)
 				conjugate = bestConjugate,
 				mod = best
 			}
+			]]--
 		end
 	end
 
 	if game.state == STATE_PREPLAY and love.timer.getTime() - game.stateChange > 2 then
 		local width = math.min(love.graphics.getWidth() - 20, 300)
-		if (x > love.graphics.getWidth() /2 - width/2 and x < love.graphics.getWidth() /2 + width/2)
-			and (y > love.graphics.getHeight() - 175 and y < love.graphics.getHeight() - 75) then
+		if (playButtonHover) then
 			game.play()
 		end
 	end
@@ -986,7 +1203,7 @@ end
 
 function love.draw()
 
-	if (game.state ~= STATE_BESTSOLUTION) then
+	if (game.state > STATE_NONE) then
 		game.drawBackground()
 		game.drawClock(love.graphics.getWidth() / 2, love.graphics.getHeight() * 0.05 + (love.graphics.getHeight() / 8), love.graphics.getHeight() / 8)
 
@@ -1013,8 +1230,18 @@ function love.draw()
 			game.drawGameStatistics()
 		end
 
-	else
+	end
+
+	if (game.state == STATE_BESTSOLUTION) then
 		game.drawBestSolutions()
+	end
+
+	if (game.state == STATE_MENU) then
+		game.drawMenu()
+	end
+
+	if (game.state == STATE_OPTIONS) then
+		game.drawOptions()
 	end
 end
 
